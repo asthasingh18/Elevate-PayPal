@@ -5,17 +5,24 @@ import com.paybridge.dto.CompatibilityEvaluationResponse;
 import com.paybridge.dto.CompatibilityStatus;
 import com.paybridge.dto.EvidenceItem;
 import com.paybridge.dto.QrParseResponse;
+import com.paybridge.entity.CompatibilityEvaluationEntity;
+import com.paybridge.entity.EvaluationEvidenceEntity;
+import com.paybridge.entity.EvaluationLimitationEntity;
 import com.paybridge.exception.InvalidEvaluationRequestException;
+import com.paybridge.repository.CompatibilityEvaluationRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
@@ -39,15 +46,33 @@ public class CompatibilityEngineService {
 
     private final QrParserService qrParserService;
     private final EvidenceStore evidenceStore;
+    private final CompatibilityEvaluationRepository evaluationRepository;
 
-    // In-memory evaluation store to support future retrieval (e.g. GET /api/evaluations and /api/ai/explain)
+    // In-memory evaluation store for fallback and unit tests without a database
     private final Map<String, CompatibilityEvaluationResponse> evaluationHistory = new ConcurrentHashMap<>();
 
+    /**
+     * Default constructor for unit tests without database.
+     * Operates in-memory.
+     */
     public CompatibilityEngineService(QrParserService qrParserService, EvidenceStore evidenceStore) {
-        this.qrParserService = qrParserService;
-        this.evidenceStore = evidenceStore;
+        this(qrParserService, evidenceStore, null);
     }
 
+    /**
+     * Spring-injected constructor for database persistence.
+     */
+    @Autowired
+    public CompatibilityEngineService(
+            QrParserService qrParserService,
+            EvidenceStore evidenceStore,
+            @Autowired(required = false) CompatibilityEvaluationRepository evaluationRepository) {
+        this.qrParserService = qrParserService;
+        this.evidenceStore = evidenceStore;
+        this.evaluationRepository = evaluationRepository;
+    }
+
+    @Transactional
     public CompatibilityEvaluationResponse evaluate(CompatibilityEvaluationRequest request) {
         validateRequest(request);
 
@@ -141,7 +166,7 @@ public class CompatibilityEngineService {
                 evaluatedAt
         );
 
-        evaluationHistory.put(evaluationId, response);
+        saveEvaluation(response);
         return response;
     }
 
@@ -165,24 +190,105 @@ public class CompatibilityEngineService {
         }
     }
 
+    @Transactional(readOnly = true)
     public Optional<CompatibilityEvaluationResponse> findEvaluationById(String evaluationId) {
         if (evaluationId == null || evaluationId.isBlank()) {
             return Optional.empty();
         }
-        return Optional.ofNullable(evaluationHistory.get(evaluationId.trim()));
+        String cleanId = evaluationId.trim();
+
+        if (evaluationRepository != null) {
+            Optional<CompatibilityEvaluationEntity> entityOpt = evaluationRepository.findById(cleanId);
+            if (entityOpt.isPresent()) {
+                return Optional.of(mapToResponse(entityOpt.get()));
+            }
+        }
+
+        return Optional.ofNullable(evaluationHistory.get(cleanId));
     }
 
+    @Transactional
     public void saveEvaluation(CompatibilityEvaluationResponse response) {
-        if (response != null && response.evaluationId() != null) {
-            evaluationHistory.put(response.evaluationId(), response);
+        if (response == null || response.evaluationId() == null) {
+            return;
+        }
+
+        // Always update in-memory map for fast access and fallback
+        evaluationHistory.put(response.evaluationId(), response);
+
+        if (evaluationRepository != null) {
+            CompatibilityEvaluationEntity entity = evaluationRepository.findById(response.evaluationId())
+                    .orElseGet(() -> new CompatibilityEvaluationEntity(
+                            response.evaluationId(),
+                            response.status(),
+                            response.reason(),
+                            response.evaluatedAt()
+                    ));
+            entity.update(response.status(), response.reason(), response.evaluatedAt());
+            entity.getEvidence().clear();
+            entity.getLimitations().clear();
+
+            if (response.evidence() != null) {
+                for (EvidenceItem item : response.evidence()) {
+                    if (item != null) {
+                        EvaluationEvidenceEntity evidenceEntity = new EvaluationEvidenceEntity(
+                                item.source(),
+                                item.description(),
+                                item.supportLevel(),
+                                item.valid(),
+                                entity
+                        );
+                        entity.addEvidence(evidenceEntity);
+                    }
+                }
+            }
+
+            if (response.limitations() != null) {
+                int order = 0;
+                for (String limitation : response.limitations()) {
+                    if (limitation != null) {
+                        EvaluationLimitationEntity limitationEntity = new EvaluationLimitationEntity(
+                                limitation,
+                                order++,
+                                entity
+                        );
+                        entity.addLimitation(limitationEntity);
+                    }
+                }
+            }
+
+            evaluationRepository.save(entity);
         }
     }
 
+    @Transactional(readOnly = true)
     public Map<String, CompatibilityEvaluationResponse> getEvaluationHistory() {
+        if (evaluationRepository != null) {
+            Map<String, CompatibilityEvaluationResponse> map = new HashMap<>();
+            for (CompatibilityEvaluationEntity entity : evaluationRepository.findAll()) {
+                map.put(entity.getEvaluationId(), mapToResponse(entity));
+            }
+            return Collections.unmodifiableMap(map);
+        }
         return Collections.unmodifiableMap(evaluationHistory);
     }
 
+    @Transactional(readOnly = true)
     public List<CompatibilityEvaluationResponse> getAllEvaluations() {
+        if (evaluationRepository != null) {
+            List<CompatibilityEvaluationEntity> entities = evaluationRepository.findAllByOrderByEvaluatedAtDesc();
+            List<CompatibilityEvaluationResponse> list = new ArrayList<>();
+            for (CompatibilityEvaluationEntity entity : entities) {
+                list.add(mapToResponse(entity));
+            }
+            list.sort((a, b) -> {
+                int cmp = b.evaluatedAt().compareTo(a.evaluatedAt());
+                if (cmp != 0) return cmp;
+                return b.evaluationId().compareTo(a.evaluationId());
+            });
+            return Collections.unmodifiableList(list);
+        }
+
         List<CompatibilityEvaluationResponse> list = new ArrayList<>(evaluationHistory.values());
         list.sort((a, b) -> {
             int cmp = b.evaluatedAt().compareTo(a.evaluatedAt());
@@ -190,5 +296,35 @@ public class CompatibilityEngineService {
             return b.evaluationId().compareTo(a.evaluationId());
         });
         return Collections.unmodifiableList(list);
+    }
+
+    private CompatibilityEvaluationResponse mapToResponse(CompatibilityEvaluationEntity entity) {
+        List<EvidenceItem> evidence = new ArrayList<>();
+        if (entity.getEvidence() != null) {
+            for (EvaluationEvidenceEntity ev : entity.getEvidence()) {
+                evidence.add(new EvidenceItem(
+                        ev.getSource(),
+                        ev.getDescription(),
+                        ev.getSupportLevel(),
+                        ev.isValid()
+                ));
+            }
+        }
+
+        List<String> limitations = new ArrayList<>();
+        if (entity.getLimitations() != null) {
+            for (EvaluationLimitationEntity lim : entity.getLimitations()) {
+                limitations.add(lim.getLimitation());
+            }
+        }
+
+        return new CompatibilityEvaluationResponse(
+                entity.getEvaluationId(),
+                entity.getStatus(),
+                entity.getReason(),
+                Collections.unmodifiableList(evidence),
+                Collections.unmodifiableList(limitations),
+                entity.getEvaluatedAt()
+        );
     }
 }
