@@ -60,6 +60,22 @@ mvn spring-boot:run
 
 The application starts on port `8081` by default (configurable via `PORT` environment variable or `application.properties`).
 
+## Configuration & Environment Variables
+
+Configure the following environment variables before starting the backend application:
+
+| Variable | Required | Default | Description |
+| :--- | :---: | :---: | :--- |
+| `DB_PASSWORD` | **Yes** (with MySQL) | None | MySQL password for `jdbc:mysql://localhost:3306/paybridge_db`. |
+| `PORT` | No | `8081` | HTTP server port for Spring Boot. |
+| `CORS_ALLOWED_ORIGINS` | No | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated list of permitted frontend origins. |
+| `GEMINI_API_KEY` | Optional | Empty | Google Gemini API key. If unset, deterministic fallback is used safely. |
+| `GEMINI_MODEL` | No | `gemini-3.8-flash` | Gemini model identifier for explanations. |
+| `GEMINI_BASE_URL` | No | `https://generativelanguage.googleapis.com` | Google Generative Language REST base URL. |
+| `PAYPAL_CLIENT_ID` | Optional | Empty | PayPal Sandbox REST App Client ID. |
+| `PAYPAL_CLIENT_SECRET` | Optional | Empty | PayPal Sandbox REST App Client Secret. |
+| `PAYPAL_BASE_URL` | No | `https://api-m.sandbox.paypal.com` | PayPal REST API base URL. |
+
 ## Available Endpoints
 
 ### 1. Health Check

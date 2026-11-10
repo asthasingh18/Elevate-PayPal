@@ -155,7 +155,8 @@ public class PayPalPaymentService {
             JsonNode links = root.path("links");
             if (links.isArray()) {
                 for (JsonNode link : links) {
-                    if ("approve".equalsIgnoreCase(link.path("rel").asText())) {
+                    String rel = link.path("rel").asText();
+                    if ("approve".equalsIgnoreCase(rel) || "payer-action".equalsIgnoreCase(rel)) {
                         approvalUrl = link.path("href").asText();
                         break;
                     }
@@ -163,7 +164,7 @@ public class PayPalPaymentService {
             }
 
             if (approvalUrl == null || approvalUrl.isBlank()) {
-                approvalUrl = baseUrl + "/checkoutnow?token=" + orderId;
+                approvalUrl = "https://www.sandbox.paypal.com/checkoutnow?token=" + orderId;
             }
 
             Instant now = Instant.now();

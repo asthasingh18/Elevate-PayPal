@@ -51,7 +51,7 @@ public class AiExplanationService {
     @Value("${gemini.api-key:}")
     private String geminiApiKey;
 
-    @Value("${gemini.model:gemini-3.5-flash-lite}")
+    @Value("${gemini.model:gemini-3.8-flash}")
     private String geminiModel;
 
     @Autowired
@@ -83,6 +83,21 @@ public class AiExplanationService {
         this.geminiApiKey = geminiApiKey;
     }
 
+    public String getGeminiModel() {
+        return (geminiModel != null && !geminiModel.isBlank()) ? geminiModel.trim() : "gemini-3.8-flash";
+    }
+
+    public String resolveEndpointUrl() {
+        String cleanBaseUrl = (geminiBaseUrl != null && !geminiBaseUrl.isBlank())
+                ? geminiBaseUrl.trim().replaceAll("/+$", "")
+                : "https://generativelanguage.googleapis.com";
+        String modelName = getGeminiModel();
+        while (modelName.startsWith("models/")) {
+            modelName = modelName.substring("models/".length());
+        }
+        return cleanBaseUrl + "/v1beta/models/" + modelName + ":generateContent";
+    }
+
     public AiExplanationResponse explain(AiExplanationRequest request) {
         if (request == null || request.evaluationId() == null || request.evaluationId().isBlank()) {
             throw new InvalidEvaluationRequestException("Request body must contain non-blank 'evaluationId'.");
@@ -98,13 +113,15 @@ public class AiExplanationService {
             try {
                 explanation = callGeminiWithRetry(evaluation);
             } catch (Exception e) {
-                log.warn("Gemini API call failed for evaluation '{}'; activating deterministic fallback: {}", evaluationId, e.getMessage());
+                log.warn("Gemini API call failed for evaluation '{}'; activating deterministic fallback: {}", evaluationId, scrubSecrets(e.getMessage()));
             }
         }
 
         if (explanation == null || explanation.isBlank()
                 || !isExplanationAcceptable(explanation, evaluation)) {
             explanation = generateFallbackExplanation(evaluation);
+        } else {
+            explanation = scrubSecrets(explanation);
         }
 
         List<String> limitations = evaluation.limitations() != null
@@ -144,7 +161,7 @@ public class AiExplanationService {
                 log.warn("Gemini API request failed permanently with HTTP {}: {}", e.getStatusCode(), e.getSanitizedMessage());
                 throw new IllegalStateException("Gemini API error (HTTP " + e.getStatusCode() + "): " + e.getSanitizedMessage(), e);
             } catch (Exception e) {
-                log.warn("Gemini API invocation encountered unexpected error: {}", e.getMessage());
+                log.warn("Gemini API invocation encountered unexpected error: {}", scrubSecrets(e.getMessage()));
                 throw e;
             }
         }
@@ -152,13 +169,7 @@ public class AiExplanationService {
 
     private String executeGeminiRequest(CompatibilityEvaluationResponse evaluation) {
         String prompt = buildPrompt(evaluation);
-        String cleanBaseUrl = (geminiBaseUrl != null && !geminiBaseUrl.isBlank())
-                ? geminiBaseUrl.trim().replaceAll("/+$", "")
-                : "https://generativelanguage.googleapis.com";
-        String modelName = (geminiModel != null && !geminiModel.isBlank()) ? geminiModel.trim() : "gemini-3.5-flash-lite";
-
-        // Construct clean endpoint URL without passing credentials in query parameters
-        String url = cleanBaseUrl + "/v1beta/models/" + modelName + ":generateContent";
+        String url = resolveEndpointUrl();
 
         Map<String, Object> requestPayload = Map.of(
                 "contents", List.of(
@@ -216,12 +227,19 @@ public class AiExplanationService {
         return scrubSecrets(body);
     }
 
-    private String scrubSecrets(String input) {
+    String scrubSecrets(String input) {
         if (input == null) return "";
+        String scrubbed = input;
+
         if (geminiApiKey != null && !geminiApiKey.isBlank()) {
-            input = input.replace(geminiApiKey.trim(), "[REDACTED_API_KEY]");
+            scrubbed = scrubbed.replace(geminiApiKey.trim(), "[REDACTED_API_KEY]");
         }
-        return input.replaceAll("(?i)(key|token|secret|password)=[^&\\s]+", "$1=[REDACTED]");
+
+        scrubbed = scrubbed.replaceAll(
+                "(?i)(?<!x-goog-api-)(key|token|secret|password)[=:]\\s*[^&\\s,\"]+",
+                "$1=[REDACTED]"
+        );
+        return scrubbed;
     }
 
     private String parseGeminiResponseText(String rawJson) {
@@ -263,7 +281,7 @@ public class AiExplanationService {
             return null;
 
         } catch (Exception e) {
-            log.warn("Error parsing Gemini API response JSON: {}", e.getMessage());
+            log.warn("Error parsing Gemini API response JSON: {}", scrubSecrets(e.getMessage()));
             return null;
         }
     }

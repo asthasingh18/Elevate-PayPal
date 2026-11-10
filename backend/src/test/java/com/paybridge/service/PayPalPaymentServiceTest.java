@@ -448,4 +448,170 @@ class PayPalPaymentServiceTest {
                 .isInstanceOf(InvalidPaymentRequestException.class)
                 .hasMessageContaining("orderId contains invalid characters");
     }
+
+    @Test
+    @DisplayName("PAY-13: Order creation extracts approval URL with rel 'payer-action'")
+    void testCreateOrder_PayerActionLinkExtraction() {
+        mockServer.expect(requestTo(baseUrl + "/v1/oauth2/token"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {
+                          "access_token": "mock-access-token-payer-action",
+                          "token_type": "Bearer",
+                          "expires_in": 32400
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        mockServer.expect(requestTo(baseUrl + "/v2/checkout/orders"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {
+                          "id": "SANDBOX_ORDER_PAYER_ACTION",
+                          "status": "CREATED",
+                          "links": [
+                            {
+                              "href": "https://www.sandbox.paypal.com/checkoutnow?token=SANDBOX_ORDER_PAYER_ACTION",
+                              "rel": "payer-action",
+                              "method": "GET"
+                            }
+                          ]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        OrderCreateResponse response = paymentService.createOrder(new OrderCreateRequest("10.00", "USD"));
+        assertThat(response.orderId()).isEqualTo("SANDBOX_ORDER_PAYER_ACTION");
+        assertThat(response.approvalUrl()).isEqualTo("https://www.sandbox.paypal.com/checkoutnow?token=SANDBOX_ORDER_PAYER_ACTION");
+        mockServer.verify();
+    }
+
+    @Test
+    @DisplayName("PAY-14: Order creation uses proper fallback URL when links array is missing or empty")
+    void testCreateOrder_FallbackApprovalUrl() {
+        mockServer.expect(requestTo(baseUrl + "/v1/oauth2/token"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {
+                          "access_token": "mock-access-token-fallback",
+                          "token_type": "Bearer",
+                          "expires_in": 32400
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        mockServer.expect(requestTo(baseUrl + "/v2/checkout/orders"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {
+                          "id": "SANDBOX_ORDER_NO_LINKS",
+                          "status": "CREATED",
+                          "links": []
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        OrderCreateResponse response = paymentService.createOrder(new OrderCreateRequest("15.00", "EUR"));
+        assertThat(response.orderId()).isEqualTo("SANDBOX_ORDER_NO_LINKS");
+        assertThat(response.approvalUrl()).isEqualTo("https://www.sandbox.paypal.com/checkoutnow?token=SANDBOX_ORDER_NO_LINKS");
+        mockServer.verify();
+    }
+
+    @Test
+    @DisplayName("PAY-15: OAuth token retrieval fails with 401 Unauthorized")
+    void testOAuth_Unauthorized_ThrowsPaymentServiceException() {
+        mockServer.expect(requestTo(baseUrl + "/v1/oauth2/token"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.UNAUTHORIZED).body("""
+                        {
+                          "error": "invalid_client",
+                          "error_description": "Client Authentication failed"
+                        }
+                        """));
+
+        assertThatThrownBy(() -> paymentService.createOrder(new OrderCreateRequest("5.00", "USD")))
+                .isInstanceOf(PaymentServiceException.class)
+                .hasMessageContaining("Failed to authenticate with PayPal Sandbox API");
+        mockServer.verify();
+    }
+
+    @Test
+    @DisplayName("PAY-16: Capture order fails with 401 Unauthorized")
+    void testCaptureOrder_Unauthorized_ThrowsPaymentServiceException() {
+        mockServer.expect(requestTo(baseUrl + "/v1/oauth2/token"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {
+                          "access_token": "expired-access-token",
+                          "token_type": "Bearer",
+                          "expires_in": 32400
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        mockServer.expect(requestTo(baseUrl + "/v2/checkout/orders/ORDER_UNAUTH/capture"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.UNAUTHORIZED).body("""
+                        {
+                          "name": "AUTHENTICATION_FAILURE",
+                          "message": "Authentication failed"
+                        }
+                        """));
+
+        assertThatThrownBy(() -> paymentService.captureOrder("ORDER_UNAUTH"))
+                .isInstanceOf(PaymentServiceException.class)
+                .hasMessageContaining("PayPal Sandbox API error during capture: 401");
+        mockServer.verify();
+    }
+
+    @Test
+    @DisplayName("PAY-17: Order creation fails with 500 Server Error")
+    void testCreateOrder_ServerError500_ThrowsPaymentServiceException() {
+        mockServer.expect(requestTo(baseUrl + "/v1/oauth2/token"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {
+                          "access_token": "mock-access-token-500",
+                          "token_type": "Bearer",
+                          "expires_in": 32400
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        mockServer.expect(requestTo(baseUrl + "/v2/checkout/orders"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR).body("""
+                        {
+                          "name": "INTERNAL_SERVER_ERROR",
+                          "message": "An internal server error occurred."
+                        }
+                        """));
+
+        assertThatThrownBy(() -> paymentService.createOrder(new OrderCreateRequest("5.00", "USD")))
+                .isInstanceOf(PaymentServiceException.class)
+                .hasMessageContaining("PayPal Sandbox API error during order creation: 500");
+        mockServer.verify();
+    }
+
+    @Test
+    @DisplayName("PAY-18: Capture order fails with 500 Server Error")
+    void testCaptureOrder_ServerError500_ThrowsPaymentServiceException() {
+        mockServer.expect(requestTo(baseUrl + "/v1/oauth2/token"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {
+                          "access_token": "mock-access-token-500",
+                          "token_type": "Bearer",
+                          "expires_in": 32400
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        mockServer.expect(requestTo(baseUrl + "/v2/checkout/orders/ORDER_500/capture"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR).body("""
+                        {
+                          "name": "INTERNAL_SERVER_ERROR",
+                          "message": "An internal server error occurred."
+                        }
+                        """));
+
+        assertThatThrownBy(() -> paymentService.captureOrder("ORDER_500"))
+                .isInstanceOf(PaymentServiceException.class)
+                .hasMessageContaining("PayPal Sandbox API error during capture: 500");
+        mockServer.verify();
+    }
 }

@@ -37,7 +37,7 @@ class AiExplanationServiceTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final String baseUrl = "https://generativelanguage.googleapis.com";
-    private final String model = "gemini-3.5-flash-lite";
+    private final String model = "gemini-3.8-flash";
     private final String expectedEndpoint = baseUrl + "/v1beta/models/" + model + ":generateContent";
 
     @BeforeEach
@@ -711,5 +711,204 @@ class AiExplanationServiceTest {
                 .doesNotContain("Provider support is verified")
                 .doesNotContain("compatibility is confirmed");
         mockServer.verify();
+    }
+
+    @Test
+    @DisplayName("Critical Business Rule: AI explanation cannot mutate or change deterministic compatibility status")
+    void testExplain_AiExplanationCannotChangeDeterministicCompatibilityStatus() {
+        CompatibilityEvaluationResponse evaluation = new CompatibilityEvaluationResponse(
+                "EVAL-IMMUTABLE-01",
+                CompatibilityStatus.UNVERIFIED,
+                "No documented bilateral linkage exists for provider in this jurisdiction.",
+                List.of(),
+                List.of("Parsing does not verify merchant legal identity.", "Compatibility has not been confirmed."),
+                Instant.now()
+        );
+        compatibilityEngineService.saveEvaluation(evaluation);
+
+        mockServer.expect(requestTo(expectedEndpoint))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {
+                          "candidates": [
+                            {
+                              "content": {
+                                "parts": [
+                                  {
+                                    "text": "The payment route has not been confirmed for your provider."
+                                  }
+                                ]
+                              },
+                              "finishReason": "STOP"
+                            }
+                          ]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        AiExplanationResponse response = aiExplanationService.explain(new AiExplanationRequest("EVAL-IMMUTABLE-01"));
+        assertThat(response.explanation()).isEqualTo("The payment route has not been confirmed for your provider.");
+
+        // Reload the evaluation directly from CompatibilityEngineService to verify it is strictly unchanged
+        CompatibilityEvaluationResponse stored = compatibilityEngineService.findEvaluationById("EVAL-IMMUTABLE-01")
+                .orElseThrow();
+        assertThat(stored.status()).isEqualTo(CompatibilityStatus.UNVERIFIED);
+        assertThat(stored.reason()).isEqualTo("No documented bilateral linkage exists for provider in this jurisdiction.");
+        assertThat(stored.limitations()).containsExactly(
+                "Parsing does not verify merchant legal identity.",
+                "Compatibility has not been confirmed."
+        );
+        assertThat(stored.evidence()).isEmpty();
+        mockServer.verify();
+    }
+
+    @Test
+    @DisplayName("Gemini Invalid API Key (HTTP 400): Fails fast and activates deterministic fallback without crashing")
+    void testExplain_GeminiInvalidApiKey_ActivatesFallback() {
+        CompatibilityEvaluationResponse evaluation = new CompatibilityEvaluationResponse(
+                "EVAL-GEMINI-400",
+                CompatibilityStatus.CONDITIONAL,
+                "Requires merchant acquiring bank enablement.",
+                List.of(),
+                List.of("Merchant prerequisite required."),
+                Instant.now()
+        );
+        compatibilityEngineService.saveEvaluation(evaluation);
+
+        mockServer.expect(requestTo(expectedEndpoint))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST).body("""
+                        {
+                          "error": {
+                            "code": 400,
+                            "message": "API key not valid. Please pass a valid API key.",
+                            "status": "INVALID_ARGUMENT"
+                          }
+                        }
+                        """));
+
+        AiExplanationResponse response = aiExplanationService.explain(new AiExplanationRequest("EVAL-GEMINI-400"));
+        assertThat(response.explanation()).contains("Payment route compatibility is conditional.");
+        assertThat(response.explanation()).contains("Requires merchant acquiring bank enablement.");
+        mockServer.verify();
+    }
+
+    @Test
+    @DisplayName("Gemini Rate Limit (HTTP 429): Retries with backoff and activates deterministic fallback when exhausted")
+    void testExplain_Gemini429RateLimit_RetriesAndActivatesFallback() {
+        CompatibilityEvaluationResponse evaluation = new CompatibilityEvaluationResponse(
+                "EVAL-GEMINI-429",
+                CompatibilityStatus.COMPATIBLE,
+                "Route active.",
+                List.of(),
+                List.of("Limitation."),
+                Instant.now()
+        );
+        compatibilityEngineService.saveEvaluation(evaluation);
+
+        // Expect 3 attempts (1 initial + 2 retries)
+        mockServer.expect(ExpectedCount.times(3), requestTo(expectedEndpoint))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS).body("""
+                        {
+                          "error": {
+                            "code": 429,
+                            "message": "Resource has been exhausted (e.g. check quota).",
+                            "status": "RESOURCE_EXHAUSTED"
+                          }
+                        }
+                        """));
+
+        AiExplanationResponse response = aiExplanationService.explain(new AiExplanationRequest("EVAL-GEMINI-429"));
+        assertThat(response.explanation()).contains("The recorded evaluation indicates that the payment route meets the documented compatibility criteria");
+        mockServer.verify();
+    }
+
+    @Test
+    @DisplayName("Configuration: Default model is gemini-3.8-flash and endpoint URL is properly constructed")
+    void testDefaultModelIsGemini38Flash() {
+        AiExplanationService defaultService = new AiExplanationService(compatibilityEngineService, objectMapper);
+        assertThat(defaultService.getGeminiModel()).isEqualTo("gemini-3.8-flash");
+        assertThat(defaultService.resolveEndpointUrl())
+                .isEqualTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
+    }
+
+    @Test
+    @DisplayName("Configuration: Model override via configure() constructs correct endpoint URL")
+    void testModelOverrideAndEndpointUrlConstruction() {
+        aiExplanationService.configure("https://custom.endpoint.com", "gemini-2.5-flash", "test-key");
+        assertThat(aiExplanationService.getGeminiModel()).isEqualTo("gemini-2.5-flash");
+        assertThat(aiExplanationService.resolveEndpointUrl())
+                .isEqualTo("https://custom.endpoint.com/v1beta/models/gemini-2.5-flash:generateContent");
+    }
+
+    @Test
+    @DisplayName("Configuration: Model name prefixed with 'models/' is normalized to prevent duplicate URL segments")
+    void testModelWithPrefixNormalizationDoesNotDuplicateModelsSegment() {
+        aiExplanationService.configure(baseUrl, "models/gemini-3.8-flash", "test-key");
+        assertThat(aiExplanationService.resolveEndpointUrl())
+                .isEqualTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
+    }
+
+    @Test
+    @DisplayName("Configuration: Model name prefixed with multiple 'models/models/' is normalized cleanly")
+    void testModelWithMultiplePrefixesNormalized() {
+        aiExplanationService.configure(baseUrl, "models/models/gemini-3.8-flash", "test-key");
+        assertThat(aiExplanationService.resolveEndpointUrl())
+                .isEqualTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
+    }
+
+    @Test
+    @DisplayName("Security: Gemini API key transmitted via x-goog-api-key header and never in URL query parameter")
+    void testSecurity_ApiKeyTransmittedViaHeaderAndNotUrlQueryParameter() {
+        CompatibilityEvaluationResponse evaluation = new CompatibilityEvaluationResponse(
+                "EVAL-SEC-01",
+                CompatibilityStatus.COMPATIBLE,
+                "Route active.",
+                List.of(),
+                List.of("Limitation."),
+                Instant.now()
+        );
+        compatibilityEngineService.saveEvaluation(evaluation);
+
+        aiExplanationService.configure(baseUrl, "gemini-3.8-flash", "SECRET_GEMINI_API_KEY_12345");
+
+        // Verify the exact URI without query parameters and verify header presence
+        mockServer.expect(requestTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("x-goog-api-key", "SECRET_GEMINI_API_KEY_12345"))
+                .andRespond(withSuccess("""
+                        {
+                          "candidates": [
+                            {
+                              "content": {
+                                "parts": [
+                                  {
+                                    "text": "The route is technically supported."
+                                  }
+                                ]
+                              },
+                              "finishReason": "STOP"
+                            }
+                          ]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        AiExplanationResponse response = aiExplanationService.explain(new AiExplanationRequest("EVAL-SEC-01"));
+        assertThat(response.explanation()).isEqualTo("The route is technically supported.");
+        assertThat(response.explanation()).doesNotContain("SECRET_GEMINI_API_KEY_12345");
+        mockServer.verify();
+    }
+
+    @Test
+    @DisplayName("Security: scrubSecrets redacts raw API key and sensitive tokens from error text")
+    void testSecurity_ScrubSecretsRedactsApiKeyAndTokens() {
+        aiExplanationService.configure(baseUrl, "gemini-3.8-flash", "SECRET_API_KEY_ABCXYZ");
+
+        String rawError = "Error connecting with key=SECRET_API_KEY_ABCXYZ and token 123456 and x-goog-api-key: SECRET_API_KEY_ABCXYZ";
+        String scrubbed = aiExplanationService.scrubSecrets(rawError);
+
+        assertThat(scrubbed).doesNotContain("SECRET_API_KEY_ABCXYZ");
+        assertThat(scrubbed).contains("[REDACTED_API_KEY]");
+        assertThat(scrubbed).contains("key=[REDACTED]");
     }
 }
