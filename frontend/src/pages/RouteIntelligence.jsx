@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+﻿import { useEffect, useState, useMemo, useCallback } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-grid.css';
@@ -7,7 +7,6 @@ import {
   BarChart3,
   ShieldCheck,
   Globe2,
-  Sparkles,
   RefreshCw,
   Search,
   AlertCircle,
@@ -16,37 +15,53 @@ import {
   Store,
   CreditCard,
   Calendar,
+  X,
+  FileText,
+  Compass,
 } from 'lucide-react';
 import api from '../services/api';
+import RouteIQNetwork from '../components/RouteIQNetwork';
 
 // Register AG Grid Community modules
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 function StatusCellRenderer(params) {
   const status = params.value || 'UNVERIFIED';
-  let badgeClass = 'status-pill-unverified';
+  let badgeStyle = {
+    background: 'var(--bg-secondary, #FAFAFA)',
+    border: '1px solid var(--border-color, #EEEEEE)',
+    color: 'var(--text-secondary, #666666)',
+  };
   let Icon = HelpCircle;
 
   if (status === 'COMPATIBLE') {
-    badgeClass = 'status-pill-compatible';
+    badgeStyle = {
+      background: '#F0FDF4',
+      border: '1px solid #DCFCE7',
+      color: '#166534',
+    };
     Icon = CheckCircle2;
   } else if (status === 'CONDITIONAL') {
-    badgeClass = 'status-pill-conditional';
+    badgeStyle = {
+      background: 'var(--accent-pink-primary, #F5DCE4)',
+      border: '1px solid var(--accent-pink-secondary, #E9A0B2)',
+      color: 'var(--text-primary, #171717)',
+    };
     Icon = AlertCircle;
   }
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', height: '100%' }}>
       <span
-        className={`status-pill ${badgeClass}`}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: '4px',
-          padding: '2px 8px',
-          borderRadius: '12px',
+          padding: '3px 8px',
+          borderRadius: '6px',
           fontSize: '11px',
-          fontWeight: 600,
+          fontWeight: 700,
+          ...badgeStyle,
         }}
       >
         <Icon size={12} />
@@ -61,24 +76,32 @@ function MerchantCellRenderer(params) {
   const payee = params.data?.payeeAddress;
 
   if (!merchant && !payee) {
-    return <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>UPI Merchant</span>;
+    return <span style={{ color: 'var(--text-muted, #929292)', fontStyle: 'italic' }}>UPI Merchant</span>;
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.3, height: '100%' }}>
       {merchant ? (
         <>
-          <strong style={{ fontSize: '13px', color: '#1e293b' }}>{merchant}</strong>
-          {payee && <small style={{ fontSize: '10px', color: '#64748b' }}>{payee}</small>}
+          <strong style={{ fontSize: '13px', color: 'var(--text-primary, #171717)' }}>
+            {merchant}
+          </strong>
+          {payee && (
+            <small style={{ fontSize: '11px', color: 'var(--text-muted, #929292)', fontFamily: "var(--font-mono, monospace)" }}>
+              {payee}
+            </small>
+          )}
         </>
       ) : (
-        <code style={{ fontSize: '12px', color: '#4f46e5' }}>{payee}</code>
+        <code style={{ fontSize: '12px', color: 'var(--text-primary, #171717)', fontFamily: "var(--font-mono, monospace)" }}>
+          {payee}
+        </code>
       )}
     </div>
   );
 }
 
-export function RouteIntelligence({ onNavigateToScan }) {
+export function RouteIntelligence({ onNavigateToScan, activeEvaluation = null }) {
   const [evaluations, setEvaluations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -128,7 +151,16 @@ export function RouteIntelligence({ onNavigateToScan }) {
         sortable: true,
         width: 155,
         cellRenderer: (params) => (
-          <code style={{ fontWeight: 600, color: '#6366f1', fontSize: '12px' }}>{params.value}</code>
+          <code
+            style={{
+              fontWeight: 600,
+              color: 'var(--text-primary, #171717)',
+              fontSize: '12px',
+              fontFamily: "var(--font-mono, monospace)",
+            }}
+          >
+            {params.value}
+          </code>
         ),
       },
       {
@@ -136,7 +168,7 @@ export function RouteIntelligence({ onNavigateToScan }) {
         field: 'merchantName',
         filter: 'agTextColumnFilter',
         sortable: true,
-        width: 190,
+        width: 195,
         cellRenderer: MerchantCellRenderer,
       },
       {
@@ -152,11 +184,12 @@ export function RouteIntelligence({ onNavigateToScan }) {
               style={{
                 display: 'inline-block',
                 padding: '2px 8px',
-                borderRadius: '6px',
-                background: '#f1f5f9',
-                color: '#334155',
+                borderRadius: '4px',
+                background: 'var(--bg-secondary, #FAFAFA)',
+                border: '1px solid var(--border-color, #EEEEEE)',
+                color: 'var(--text-secondary, #666666)',
                 fontSize: '11px',
-                fontWeight: 600,
+                fontWeight: 700,
               }}
             >
               {provider}
@@ -171,7 +204,13 @@ export function RouteIntelligence({ onNavigateToScan }) {
         sortable: true,
         width: 105,
         cellRenderer: (params) => (
-          <span style={{ fontWeight: 700, color: '#475569', fontSize: '12px' }}>
+          <span
+            style={{
+              fontWeight: 700,
+              color: 'var(--text-primary, #171717)',
+              fontSize: '12px',
+            }}
+          >
             {params.value || 'GLOBAL'}
           </span>
         ),
@@ -180,12 +219,18 @@ export function RouteIntelligence({ onNavigateToScan }) {
         headerName: 'Amount',
         field: 'amount',
         sortable: true,
-        width: 115,
+        width: 120,
         cellRenderer: (params) => {
-          if (!params.value) return <span style={{ color: '#94a3b8' }}>Dynamic</span>;
+          if (!params.value) {
+            return (
+              <span style={{ color: 'var(--text-muted, #929292)', fontStyle: 'italic', fontSize: '12px' }}>
+                Dynamic
+              </span>
+            );
+          }
           const curr = params.data?.currency || 'INR';
           return (
-            <strong style={{ color: '#047857', fontSize: '12px' }}>
+            <strong style={{ color: 'var(--text-primary, #171717)', fontSize: '12px' }}>
               {curr} {params.value}
             </strong>
           );
@@ -193,15 +238,15 @@ export function RouteIntelligence({ onNavigateToScan }) {
       },
       {
         field: 'status',
-        headerName: 'Compatibility',
+        headerName: 'Route Verdict',
         filter: 'agTextColumnFilter',
         sortable: true,
-        width: 155,
+        width: 165,
         cellRenderer: StatusCellRenderer,
       },
       {
         field: 'reason',
-        headerName: 'Deterministic Reason',
+        headerName: 'Deterministic Engine Rationale',
         filter: 'agTextColumnFilter',
         sortable: true,
         flex: 1,
@@ -215,7 +260,9 @@ export function RouteIntelligence({ onNavigateToScan }) {
         width: 105,
         valueGetter: (params) => (params.data.evidence ? params.data.evidence.length : 0),
         cellRenderer: (params) => (
-          <span style={{ fontSize: '12px' }}>{params.value} items</span>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary, #666666)' }}>
+            {params.value} checks
+          </span>
         ),
       },
       {
@@ -225,15 +272,17 @@ export function RouteIntelligence({ onNavigateToScan }) {
         width: 110,
         valueGetter: (params) => (params.data.limitations ? params.data.limitations.length : 0),
         cellRenderer: (params) => (
-          <span style={{ color: '#d97706', fontSize: '12px' }}>{params.value} listed</span>
+          <span style={{ color: 'var(--accent-red-restrained, #D94B5B)', fontSize: '12px', fontWeight: 600 }}>
+            {params.value} rules
+          </span>
         ),
       },
       {
         field: 'evaluatedAt',
-        headerName: 'Timestamp',
+        headerName: 'Audit Timestamp',
         filter: 'agDateColumnFilter',
         sortable: true,
-        width: 175,
+        width: 180,
         valueFormatter: (params) => {
           if (!params.value) return 'N/A';
           try {
@@ -255,81 +304,213 @@ export function RouteIntelligence({ onNavigateToScan }) {
     return { total, compatible, conditional, unverified };
   }, [evaluations]);
 
+  const visualizedRecord = selectedEval || (evaluations.length > 0 ? evaluations[0] : activeEvaluation);
+
   return (
-    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Top Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', boxSizing: 'border-box' }}>
+      {/* 1. Header & Quick Controls */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          gap: '16px',
+        }}
+      >
         <div>
-          <span className="eyebrow" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <Globe2 size={14} /> LIVE ROUTE INTELLIGENCE
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '11px',
+              fontWeight: 700,
+              letterSpacing: '1px',
+              textTransform: 'uppercase',
+              color: 'var(--text-secondary, #666666)',
+              marginBottom: '4px',
+            }}
+          >
+            <Globe2 size={13} /> ROUTEIQ ENGINE &amp; AUDIT TRAIL
           </span>
-          <h2 style={{ fontSize: '24px', fontWeight: 700, margin: '4px 0 6px 0' }}>RouteIQ Evaluation Audit</h2>
-          <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>
-            Authoritative, deterministic records of payment route compatibility checks stored in MySQL backend.
+          <h2
+            style={{
+              fontSize: '24px',
+              fontWeight: 700,
+              margin: '2px 0 4px 0',
+              color: 'var(--text-primary, #171717)',
+            }}
+          >
+            Route Intelligence &amp; Evaluation Audit
+          </h2>
+          <p
+            style={{
+              color: 'var(--text-secondary, #666666)',
+              fontSize: '14px',
+              margin: 0,
+            }}
+          >
+            Authoritative, deterministic cross-border route compatibility records persisted in MySQL.
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button
             className="secondary-button"
             onClick={fetchEvaluations}
             disabled={loading}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer' }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '9px 15px',
+              borderRadius: '8px',
+              background: 'var(--bg-main, #FFFFFF)',
+              border: '1px solid var(--border-color, #EEEEEE)',
+              color: 'var(--text-primary, #171717)',
+              fontWeight: 600,
+              fontSize: '13px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+            }}
           >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             {loading ? 'Refreshing...' : 'Refresh Records'}
           </button>
           {onNavigateToScan && (
             <button
               className="primary-button"
               onClick={onNavigateToScan}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px' }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 16px',
+                borderRadius: '8px',
+                background: 'var(--btn-primary-bg, #171717)',
+                color: 'var(--btn-primary-text, #FFFFFF)',
+                fontWeight: 600,
+                fontSize: '13px',
+                border: 'none',
+                cursor: 'pointer',
+              }}
             >
-              <Sparkles size={15} />
+              <Compass size={14} />
               Evaluate New QR
             </button>
           )}
         </div>
       </div>
 
-      {/* Summary Stat Cards */}
+      {/* 2. RouteIQ Network Visualization */}
+      <RouteIQNetwork evaluationResult={visualizedRecord} />
+
+      {/* 3. Summary Metrics Cards */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
           gap: '14px',
         }}
       >
-        <div className="glass-card" style={{ padding: '16px' }}>
-          <span style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Total Audit Records
-          </span>
-          <div style={{ fontSize: '24px', fontWeight: 700, marginTop: '4px' }}>{stats.total}</div>
-          <small style={{ color: '#94a3b8' }}>Live MySQL records</small>
+        <div
+          style={{
+            background: 'var(--bg-main, #FFFFFF)',
+            border: '1px solid var(--border-color, #EEEEEE)',
+            borderRadius: '12px',
+            padding: '18px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted, #929292)', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700 }}>
+              Total Audit Records
+            </span>
+            <div style={{ fontSize: '28px', fontWeight: 800, marginTop: '4px', color: 'var(--text-primary, #171717)' }}>
+              {stats.total}
+            </div>
+          </div>
+          <small style={{ color: 'var(--text-muted, #929292)', fontSize: '11px' }}>
+            Persisted in MySQL
+          </small>
         </div>
 
-        <div className="glass-card" style={{ padding: '16px', borderLeft: '4px solid #10b981' }}>
-          <span style={{ fontSize: '12px', color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-            Compatible
-          </span>
-          <div style={{ fontSize: '24px', fontWeight: 700, marginTop: '4px', color: '#10b981' }}>{stats.compatible}</div>
-          <small style={{ color: '#94a3b8' }}>Verified payment rails</small>
+        <div
+          style={{
+            background: 'var(--bg-main, #FFFFFF)',
+            border: '1px solid var(--border-color, #EEEEEE)',
+            borderRadius: '12px',
+            padding: '18px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div>
+            <span style={{ fontSize: '11px', color: '#166534', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700 }}>
+              Compatible Routes
+            </span>
+            <div style={{ fontSize: '28px', fontWeight: 800, marginTop: '4px', color: '#166534' }}>
+              {stats.compatible}
+            </div>
+          </div>
+          <small style={{ color: 'var(--text-muted, #929292)', fontSize: '11px' }}>
+            Direct settlements verified
+          </small>
         </div>
 
-        <div className="glass-card" style={{ padding: '16px', borderLeft: '4px solid #f59e0b' }}>
-          <span style={{ fontSize: '12px', color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-            Conditional
-          </span>
-          <div style={{ fontSize: '24px', fontWeight: 700, marginTop: '4px', color: '#f59e0b' }}>{stats.conditional}</div>
-          <small style={{ color: '#94a3b8' }}>Prerequisites apply</small>
+        <div
+          style={{
+            background: 'var(--bg-main, #FFFFFF)',
+            border: '1px solid var(--border-color, #EEEEEE)',
+            borderRadius: '12px',
+            padding: '18px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div>
+            <span style={{ fontSize: '11px', color: 'var(--accent-red-restrained, #D94B5B)', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700 }}>
+              Conditional Routes
+            </span>
+            <div style={{ fontSize: '28px', fontWeight: 800, marginTop: '4px', color: 'var(--text-primary, #171717)' }}>
+              {stats.conditional}
+            </div>
+          </div>
+          <small style={{ color: 'var(--text-muted, #929292)', fontSize: '11px' }}>
+            Prerequisites &amp; caps apply
+          </small>
         </div>
 
-        <div className="glass-card" style={{ padding: '16px', borderLeft: '4px solid #6366f1' }}>
-          <span style={{ fontSize: '12px', color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-            Unverified
-          </span>
-          <div style={{ fontSize: '24px', fontWeight: 700, marginTop: '4px', color: '#6366f1' }}>{stats.unverified}</div>
-          <small style={{ color: '#94a3b8' }}>Evidence required</small>
+        <div
+          style={{
+            background: 'var(--bg-main, #FFFFFF)',
+            border: '1px solid var(--border-color, #EEEEEE)',
+            borderRadius: '12px',
+            padding: '18px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div>
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary, #666666)', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700 }}>
+              Unverified Rails
+            </span>
+            <div style={{ fontSize: '28px', fontWeight: 800, marginTop: '4px', color: 'var(--text-primary, #171717)' }}>
+              {stats.unverified}
+            </div>
+          </div>
+          <small style={{ color: 'var(--text-muted, #929292)', fontSize: '11px' }}>
+            Direct bridge unsupported
+          </small>
         </div>
       </div>
 
@@ -337,61 +518,113 @@ export function RouteIntelligence({ onNavigateToScan }) {
       {error && (
         <div
           style={{
-            padding: '14px 18px',
-            backgroundColor: '#fee2e2',
-            border: '1px solid #fecaca',
-            color: '#b91c1c',
-            borderRadius: '10px',
+            padding: '12px 16px',
+            backgroundColor: '#FEF2F2',
+            border: '1px solid #FECACA',
+            color: '#991B1B',
+            borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '12px',
-            fontSize: '14px',
+            fontSize: '13px',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <AlertCircle size={20} />
+            <AlertCircle size={16} />
             <span>{error}</span>
           </div>
           <button
             className="secondary-button"
             onClick={fetchEvaluations}
-            style={{ padding: '4px 12px', fontSize: '12px' }}
+            style={{
+              padding: '4px 10px',
+              fontSize: '12px',
+              borderRadius: '6px',
+              border: '1px solid #F87171',
+              background: '#FFFFFF',
+              color: '#991B1B',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
           >
-            Retry Connection
+            Retry
           </button>
         </div>
       )}
 
-      {/* Grid Container */}
-      <div className="glass-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+      {/* 4. TABULAR AG GRID AUDIT LOG */}
+      <div
+        style={{
+          background: 'var(--bg-main, #FFFFFF)',
+          border: '1px solid var(--border-color, #EEEEEE)',
+          borderRadius: '14px',
+          padding: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BarChart3 size={18} />
-            <strong style={{ fontSize: '15px' }}>Audit Trail (AG Grid)</strong>
-            <span style={{ fontSize: '12px', color: '#94a3b8' }}>Click row to view full evidence &amp; limitations</span>
+            <BarChart3 size={17} color="var(--text-primary, #171717)" />
+            <strong style={{ fontSize: '15px', color: 'var(--text-primary, #171717)' }}>
+              Tabular Evaluation Audit (AG Grid)
+            </strong>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted, #929292)' }}>
+              â€” Click any row to view documented evidence and limitations
+            </span>
           </div>
 
           <div style={{ position: 'relative', width: '260px' }}>
-            <Search size={15} style={{ position: 'absolute', left: '10px', top: '10px', color: '#94a3b8' }} />
+            <Search
+              size={14}
+              style={{
+                position: 'absolute',
+                left: '10px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--text-muted, #929292)',
+              }}
+            />
             <input
               type="text"
-              placeholder="Search evaluations..."
+              placeholder="Filter evaluations..."
               value={quickFilterText}
               onChange={(e) => setQuickFilterText(e.target.value)}
               style={{
                 width: '100%',
-                padding: '6px 10px 6px 32px',
+                padding: '7px 10px 7px 32px',
                 borderRadius: '6px',
-                border: '1px solid #cbd5e1',
+                border: '1px solid var(--border-color, #EEEEEE)',
+                background: 'var(--bg-secondary, #FAFAFA)',
                 fontSize: '13px',
                 outline: 'none',
+                boxSizing: 'border-box',
               }}
             />
           </div>
         </div>
 
-        <div className="ag-theme-alpine" style={{ height: '420px', width: '100%', borderRadius: '8px', overflow: 'hidden' }}>
+        {/* AG Grid Table Container */}
+        <div
+          className="ag-theme-alpine"
+          style={{
+            height: '420px',
+            width: '100%',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            border: '1px solid var(--border-color, #EEEEEE)',
+          }}
+        >
           <AgGridReact
             rowData={evaluations}
             columnDefs={columnDefs}
@@ -403,7 +636,7 @@ export function RouteIntelligence({ onNavigateToScan }) {
             rowSelection="single"
             animateRows={true}
             overlayLoadingTemplate="<span>Loading records from backend...</span>"
-            overlayNoRowsTemplate="<span>No evaluation records stored yet. Evaluate a QR code in QR Sense or BridgeMatch to record an evaluation.</span>"
+            overlayNoRowsTemplate="<span>No evaluation records stored yet. Evaluate a QR code in Scan &amp; Pay to record an evaluation.</span>"
           />
         </div>
       </div>
@@ -411,144 +644,221 @@ export function RouteIntelligence({ onNavigateToScan }) {
       {/* Empty State Banner (if 0 records and not loading) */}
       {!loading && evaluations.length === 0 && !error && (
         <div
-          className="glass-card"
           style={{
+            background: 'var(--bg-main, #FFFFFF)',
+            border: '1px dashed var(--border-color, #EEEEEE)',
+            borderRadius: '14px',
             padding: '36px 20px',
             textAlign: 'center',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: '12px',
+            gap: '10px',
           }}
         >
-          <Globe2 size={40} color="#a5b4fc" />
-          <h3 style={{ margin: 0, color: '#334155' }}>No Evaluation Records Yet</h3>
-          <p style={{ maxWidth: '420px', margin: 0, fontSize: '13px', color: '#64748b' }}>
+          <Globe2 size={36} color="var(--text-muted, #929292)" />
+          <h3 style={{ margin: 0, color: 'var(--text-primary, #171717)', fontSize: '18px' }}>
+            No Evaluation Records Yet
+          </h3>
+          <p style={{ maxWidth: '420px', margin: 0, fontSize: '13px', color: 'var(--text-secondary, #666666)' }}>
             Every time you evaluate a QR code in BridgeMatch, the audit record and documented evidence are persisted in MySQL and audited here in RouteIQ.
           </p>
           {onNavigateToScan && (
             <button
               className="primary-button"
               onClick={onNavigateToScan}
-              style={{ marginTop: '8px' }}
+              style={{
+                marginTop: '8px',
+                padding: '9px 16px',
+                background: 'var(--btn-primary-bg, #171717)',
+                color: 'var(--btn-primary-text, #FFFFFF)',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
             >
-              <Sparkles size={16} /> Start First Evaluation
+              <Compass size={14} /> Start First Evaluation
             </button>
           )}
         </div>
       )}
 
-      {/* Detail Inspector Drawer / Modal */}
+      {/* 5. Detail Inspector Drawer */}
       {selectedEval && (
         <div
-          className="glass-card"
           style={{
-            padding: '24px',
-            border: '1.5px solid #6366f1',
-            borderRadius: '16px',
-            backgroundColor: '#fffffffa',
+            background: 'var(--bg-main, #FFFFFF)',
+            border: '1.5px solid var(--accent-pink-secondary, #E9A0B2)',
+            borderRadius: '14px',
+            padding: '20px',
             display: 'flex',
             flexDirection: 'column',
             gap: '14px',
-            boxShadow: '0 10px 30px rgba(99, 102, 241, 0.1)',
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <ShieldCheck size={22} color="#6366f1" />
-              <h3 style={{ margin: 0, fontSize: '18px' }}>
-                Evaluation Record: <code style={{ color: '#4f46e5' }}>{selectedEval.evaluationId}</code>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldCheck size={20} color="var(--text-primary, #171717)" />
+              <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--text-primary, #171717)' }}>
+                Evaluation Record: <code style={{ color: 'var(--text-primary, #171717)', fontFamily: "var(--font-mono, monospace)" }}>{selectedEval.evaluationId}</code>
               </h3>
               <StatusCellRenderer value={selectedEval.status} />
             </div>
             <button
               onClick={() => setSelectedEval(null)}
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '20px', color: '#64748b' }}
+              style={{
+                background: 'var(--bg-secondary, #FAFAFA)',
+                border: '1px solid var(--border-color, #EEEEEE)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                padding: '5px',
+                color: 'var(--text-secondary, #666666)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
               aria-label="Close Inspector"
             >
-              Ã—
+              <X size={15} />
             </button>
           </div>
 
           {/* Metadata Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
-            <div style={{ padding: '10px 14px', background: '#f8fafc', borderRadius: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748b' }}>
-                <Store size={14} /> Merchant / Payee
+            <div style={{ padding: '10px 14px', background: 'var(--bg-secondary, #FAFAFA)', borderRadius: '8px', border: '1px solid var(--border-color, #EEEEEE)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-muted, #929292)', textTransform: 'uppercase', fontWeight: 700 }}>
+                <Store size={13} /> Merchant / Payee
               </div>
-              <strong style={{ fontSize: '13px', color: '#1e293b', display: 'block', marginTop: '2px' }}>
+              <strong style={{ fontSize: '13px', color: 'var(--text-primary, #171717)', display: 'block', marginTop: '4px' }}>
                 {selectedEval.merchantName || 'UPI Merchant'}
               </strong>
               {selectedEval.payeeAddress && (
-                <code style={{ fontSize: '11px', color: '#6366f1' }}>{selectedEval.payeeAddress}</code>
+                <code style={{ fontSize: '11px', color: 'var(--text-secondary, #666666)', fontFamily: "var(--font-mono, monospace)" }}>
+                  {selectedEval.payeeAddress}
+                </code>
               )}
             </div>
 
-            <div style={{ padding: '10px 14px', background: '#f8fafc', borderRadius: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748b' }}>
-                <CreditCard size={14} /> Provider &amp; Country
+            <div style={{ padding: '10px 14px', background: 'var(--bg-secondary, #FAFAFA)', borderRadius: '8px', border: '1px solid var(--border-color, #EEEEEE)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-muted, #929292)', textTransform: 'uppercase', fontWeight: 700 }}>
+                <CreditCard size={13} /> Provider &amp; Country
               </div>
-              <strong style={{ fontSize: '13px', color: '#1e293b', display: 'block', marginTop: '2px' }}>
+              <strong style={{ fontSize: '13px', color: 'var(--text-primary, #171717)', display: 'block', marginTop: '4px' }}>
                 {(selectedEval.candidateProvider || 'UPI').toUpperCase()}
               </strong>
-              <small style={{ fontSize: '11px', color: '#64748b' }}>Country: {selectedEval.visitorCountry || 'GLOBAL'}</small>
+              <small style={{ fontSize: '11px', color: 'var(--text-muted, #929292)' }}>
+                Country: <strong style={{ color: 'var(--text-primary, #171717)' }}>{selectedEval.visitorCountry || 'GLOBAL'}</strong>
+              </small>
             </div>
 
-            <div style={{ padding: '10px 14px', background: '#f8fafc', borderRadius: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748b' }}>
-                <Calendar size={14} /> Evaluated At
+            <div style={{ padding: '10px 14px', background: 'var(--bg-secondary, #FAFAFA)', borderRadius: '8px', border: '1px solid var(--border-color, #EEEEEE)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-muted, #929292)', textTransform: 'uppercase', fontWeight: 700 }}>
+                <Calendar size={13} /> Audit Timestamp
               </div>
-              <strong style={{ fontSize: '12px', color: '#1e293b', display: 'block', marginTop: '2px' }}>
+              <strong style={{ fontSize: '12px', color: 'var(--text-primary, #171717)', display: 'block', marginTop: '4px' }}>
                 {selectedEval.evaluatedAt ? new Date(selectedEval.evaluatedAt).toLocaleString() : 'N/A'}
               </strong>
-              <small style={{ fontSize: '10px', color: '#94a3b8' }}>Audit Timestamp</small>
+              <small style={{ fontSize: '10px', color: 'var(--text-muted, #929292)' }}>MySQL Verified</small>
             </div>
           </div>
 
-          <p style={{ margin: '4px 0 0', fontSize: '14px', color: '#334155', lineHeight: 1.6 }}>
-            <strong>Deterministic Reason:</strong> {selectedEval.reason}
-          </p>
+          <div
+            style={{
+              padding: '10px 14px',
+              background: 'var(--bg-secondary, #FAFAFA)',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color, #EEEEEE)',
+              fontSize: '13px',
+              color: 'var(--text-primary, #171717)',
+              lineHeight: 1.5,
+            }}
+          >
+            <strong>Deterministic Reason: </strong>
+            <span style={{ color: 'var(--text-secondary, #666666)' }}>{selectedEval.reason}</span>
+          </div>
 
           {selectedEval.limitations && selectedEval.limitations.length > 0 && (
-            <div>
-              <strong style={{ fontSize: '13px', color: '#b45309' }}>Documented Route Limitations:</strong>
-              <ul style={{ margin: '6px 0 0 18px', padding: 0, fontSize: '13px', color: '#78350f' }}>
+            <div
+              style={{
+                padding: '12px 14px',
+                background: 'var(--accent-pink-primary, #F5DCE4)',
+                border: '1px solid var(--accent-pink-secondary, #E9A0B2)',
+                borderRadius: '8px',
+              }}
+            >
+              <strong style={{ fontSize: '11px', color: 'var(--text-primary, #171717)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                Documented Route Limitations ({selectedEval.limitations.length})
+              </strong>
+              <ul style={{ margin: '6px 0 0 16px', padding: 0, fontSize: '13px', color: 'var(--text-primary, #171717)' }}>
                 {selectedEval.limitations.map((lim, idx) => (
-                  <li key={idx} style={{ marginBottom: '4px' }}>{lim}</li>
+                  <li key={idx} style={{ marginBottom: '3px' }}>{lim}</li>
                 ))}
               </ul>
             </div>
           )}
 
-          {selectedEval.evidence && selectedEval.evidence.length > 0 ? (
+          {selectedEval.evidence && selectedEval.evidence.length > 0 && (
             <div>
-              <strong style={{ fontSize: '13px', color: '#4338ca' }}>Supporting Evidence:</strong>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
+              <strong style={{ fontSize: '11px', color: 'var(--text-secondary, #666666)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                Supporting Rule Evidence ({selectedEval.evidence.length} checks)
+              </strong>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
                 {selectedEval.evidence.map((ev, idx) => (
                   <div
                     key={idx}
                     style={{
-                      padding: '10px 14px',
-                      background: '#f8fafc',
-                      borderRadius: '8px',
-                      borderLeft: ev.valid ? '3px solid #10b981' : '3px solid #cbd5e1',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      background: 'var(--bg-secondary, #FAFAFA)',
+                      border: '1px solid var(--border-color, #EEEEEE)',
                       fontSize: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      color: 'var(--text-secondary, #666666)',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong>{ev.source}</strong>
-                      <span style={{ fontSize: '11px', padding: '2px 6px', background: '#e0e7ff', color: '#3730a3', borderRadius: '4px' }}>
-                        {ev.supportLevel}
-                      </span>
-                    </div>
-                    <div style={{ color: '#475569', marginTop: '4px', lineHeight: 1.4 }}>{ev.description}</div>
+                    <CheckCircle2 size={13} color="#166534" />
+                    <span>
+  {typeof ev === "string" ? ev : (
+    <>
+      <strong>{ev.source || "Rule"}:</strong>{" "}
+      {ev.description || "Evidence assertion"}
+      {ev.supportLevel && ` (${ev.supportLevel})`}
+      {ev.valid === false && " — Not valid"}
+    </>
+  )}
+</span>
                   </div>
                 ))}
               </div>
             </div>
-          ) : (
-            <div style={{ fontSize: '13px', color: '#94a3b8' }}>
-              <em>No documented authoritative evidence items available for this route. Status remains UNVERIFIED.</em>
+          )}
+
+          {selectedEval.qrPayload && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-muted, #929292)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '4px' }}>
+                <FileText size={12} /> Raw QR Payload String
+              </div>
+              <pre
+                style={{
+                  margin: 0,
+                  padding: '8px 12px',
+                  background: 'var(--bg-secondary, #FAFAFA)',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color, #EEEEEE)',
+                  fontFamily: "var(--font-mono, monospace)",
+                  fontSize: '11px',
+                  color: 'var(--text-primary, #171717)',
+                  overflowX: 'auto',
+                }}
+              >
+                {selectedEval.qrPayload}
+              </pre>
             </div>
           )}
         </div>

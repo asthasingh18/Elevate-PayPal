@@ -5,7 +5,10 @@
  * Strict adherence to docs/API_CONTRACT.md and backend DTO specifications.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+// In development with the Vite proxy configured in vite.config.js,
+// API_BASE defaults to empty string so requests to '/api/...' go through the Vite dev server proxy.
+// If VITE_API_URL is explicitly defined (e.g. in production or cross-origin dev), it will use that base URL.
+const API_BASE = import.meta.env.VITE_API_URL !== undefined ? import.meta.env.VITE_API_URL : '';
 
 /**
  * Custom API Error wrapping backend error responses
@@ -45,7 +48,7 @@ async function request(endpoint, options = {}) {
   } catch {
     throw new ApiError(
       0,
-      `Network connection failed. Unable to reach backend at ${API_BASE}. Ensure the Spring Boot service is running.`,
+      `Network connection failed. Unable to reach backend at ${API_BASE || 'proxy (/api)'}. Ensure the Spring Boot service is running.`,
       { error: 'NETWORK_ERROR' }
     );
   }
