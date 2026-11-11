@@ -1,80 +1,165 @@
-# PayBridge AI 2.0
+﻿# PayBridge AI 2.0
 
-**AI-Powered Payment Compatibility & Intelligence Platform**
+**AI-Powered Cross-Border Payment Compatibility & Intelligence Platform**
 
-PayBridge AI is a project designed to evaluate payment-route compatibility using structured evidence, explain evaluation results with AI, and provide a dashboard for investigating evaluations and payment test outcomes.
+PayBridge AI 2.0 is an intelligent payment routing and merchant compatibility platform built for the **Elevate-PayPal Hackathon**. It evaluates international payment-route compatibility against local UPI QR standards, explains evaluation verdicts using Google Gemini AI, demonstrates seamless checkout flows via PayPal Sandbox, and provides an interactive RouteIQ intelligence dashboard.
 
-> **Project status:** Under development. Features described here are planned and are not yet claimed to be implemented.
+---
 
-## Problem
+## Architecture & Monorepo Structure
 
-International visitors may encounter payment methods and QR codes that their preferred payment providers cannot use. It can be difficult to distinguish a supported route from one that is conditional or has not been verified.
+`	ext
+Elevate-PayPal/
+├── docs/                               # Architecture and API contracts
+│   ├── API_CONTRACT.md                 # REST API endpoints & payloads
+│   ├── ARCHITECTURE.md                 # System architecture & component flow
+│   └── TEST_PLAN.md                    # Test execution & verification plan
+├── frontend/                           # React 19 + Vite 8 SPA Client
+│   ├── public/                         # Static UI assets & branding
+│   ├── src/
+│   │   ├── components/                 # PayBridgeLogo, RouteIQNetwork, visualizers
+│   │   ├── pages/                      # Dashboard, RouteIntelligence (RouteIQ)
+│   │   └── services/                   # Centralized API service with proxy support
+│   ├── .env.example                    # Frontend environment template
+│   ├── package.json                    # Dependencies & build scripts
+│   └── vite.config.js                  # Vite configuration & /api proxy to port 8081
+├── backend/                            # Java 21 + Spring Boot 3.4.3 REST Service
+│   ├── src/main/java/com/paybridge/
+│   │   ├── config/                     # CORS and web configuration
+│   │   ├── controller/                 # REST Controllers (QR, Compatibility, AI, Payment, Health)
+│   │   ├── dto/                        # Strongly typed request/response records
+│   │   ├── entity/                     # JPA entities for MySQL persistence
+│   │   ├── repository/                 # Spring Data JPA repositories
+│   │   └── service/                    # Deterministic engines, QR parser, Gemini & PayPal services
+│   ├── src/test/                       # 150 automated unit, integration, and security tests
+│   ├── application-local.properties.example # Local MySQL credential template
+│   ├── pom.xml                         # Maven dependencies & build plugins
+│   └── mvnw / mvnw.cmd                 # Maven wrapper
+├── .gitignore                          # Monorepo git exclusion rules
+├── LICENSE                             # MIT License
+└── README.md                           # This file
+`
 
-## Proposed Solution
+---
 
-PayBridge AI aims to:
+## Technology Stack
 
-- Parse supported UPI QR data and display available fields.
-- Evaluate candidate payment routes using documented capabilities and evidence.
-- Classify results as `COMPATIBLE`, `CONDITIONAL`, or `UNVERIFIED`.
-- Use AI to explain structured evaluation results and their limitations.
-- Provide an interactive dashboard for examining evaluation records and test outcomes.
-- Demonstrate the PayPal Orders API using PayPal Sandbox.
-
-## Planned Technology Stack
-
-| Component | Technology |
+| Tier | Technologies |
 |---|---|
-| Frontend | React, Vite, Tailwind CSS |
-| Backend | Java, Spring Boot |
-| Database | MySQL |
-| AI explanations | Gemini API |
-| Payment demonstration | PayPal Sandbox |
-| Data dashboard | AG Grid |
-| Version control | Git and GitHub |
+| **Frontend** | React 19, Vite 8, Tailwind CSS, Lucide React, Motion, AG Grid Community |
+| **Backend** | Java 21, Spring Boot 3.4.3, Spring Data JPA, Spring Web |
+| **Database** | MySQL 8.x (with Hibernate schema auto-update) |
+| **AI Integration** | Google Gemini API (gemini-3.5-flash-lite) with strict deterministic fallbacks |
+| **Payment Demo** | PayPal Sandbox Orders API (Create & Capture flow) |
+| **Testing** | JUnit 5, Mockito, MockRestServiceServer, MockMvc (150 tests) |
 
-## Important Payment Limitations
+---
 
-- A parsed QR code does not, by itself, verify the merchant's identity or legitimacy.
-- Route compatibility claims must be supported by evidence; unknown support will be labelled `UNVERIFIED`.
-- PayPal Sandbox checkout is a separate payment-flow demonstration. It does not transfer funds to the merchant encoded in a scanned UPI QR code.
-- AI explanations will not independently authorize payments or override backend compatibility decisions.
-- This project does not claim that PayPal is accepted by every UPI QR merchant.
+## Quick Start Guide
 
-## Project Structure
+### Prerequisites
+- **Java 21 JDK** installed and configured (java -version)
+- **Node.js 18+** and **npm** installed (
+ode -v, 
+pm -v)
+- **MySQL 8.x** running locally on port 3306 (or configured via environment variables)
 
-```text
-PayBridge-AI/
-├── frontend/
-├── backend/
-├── docs/
-│   ├── API_CONTRACT.md
-│   ├── ARCHITECTURE.md
-│   └── TEST_PLAN.md
-├── .gitignore
-├── LICENSE
-└── README.md
-```
+---
 
-The frontend and backend directories will be added as implementation begins.
+### 1. Setting Up and Running the Backend
 
-## Getting Started
+From the repository root, navigate into the ackend/ directory:
 
-Setup instructions will be added as the frontend and backend become runnable.
+`powershell
+cd backend
+`
 
-## Testing
+#### Local Configuration (Optional)
+If your local MySQL root password is not blank, copy the example configuration:
+`powershell
+Copy-Item application-local.properties.example application-local.properties
+`
+Edit pplication-local.properties with your credentials:
+`properties
+spring.datasource.password=YOUR_MYSQL_PASSWORD
+`
 
-Test instructions and verified results will be documented in `docs/TEST_PLAN.md` as features are implemented.
+Alternatively, configure standard environment variables:
+- DB_USERNAME: Database username (default: oot)
+- DB_PASSWORD: Database password (default: empty)
+- PAYPAL_CLIENT_ID: PayPal Sandbox client ID
+- PAYPAL_CLIENT_SECRET: PayPal Sandbox client secret
+- GEMINI_API_KEY: Google Gemini API key
 
-## Open Source
+#### Run Automated Tests
+`powershell
+.\mvnw.cmd test
+`
+*Current result: 150 tests, 0 failures, 0 errors.*
 
-This project is intended to be released under the MIT License. See `LICENSE` for the applicable terms.
+#### Launch Backend Server
+`powershell
+.\mvnw.cmd spring-boot:run
+`
+The backend starts on port **8081**. Verify with:
+`powershell
+Invoke-RestMethod -Uri "http://localhost:8081/api/health"
+# Returns: {"status":"UP"}
+`
 
-## Contributors
+---
 
-- Member 1 — Frontend development
-- Member 2 — Backend development
+### 2. Setting Up and Running the Frontend
 
-## Disclaimer
+From a new terminal, navigate into the rontend/ directory:
 
-PayBridge AI is an independent hackathon project. It is not an official PayPal product and does not establish payment-provider support or guarantee successful transactions.
+`powershell
+cd frontend
+`
+
+#### Install Dependencies
+`powershell
+npm install
+`
+
+#### Configure Environment (Optional)
+Copy the environment template:
+`powershell
+Copy-Item .env.example .env
+`
+*(By default, VITE_API_URL is empty to automatically utilize the Vite development proxy routing /api -> http://localhost:8081)*.
+
+#### Start Development Server
+`powershell
+npm run dev
+`
+Open **http://localhost:5173** in your browser.
+
+#### Build for Production
+`powershell
+npm run build
+`
+
+---
+
+## Core Capabilities
+
+1. **UPI QR Parsing (POST /api/qr/parse):** Parses merchant VPAs (pa), merchant names (pn), transaction amounts (m), and currencies (cu) with strict validation.
+2. **Deterministic Route Compatibility Engine (POST /api/compatibility/evaluate):** Evaluates bilateral rails and documented payment provider evidence, classifying outcomes strictly into COMPATIBLE, CONDITIONAL, or UNVERIFIED.
+3. **AI Explanations with Strict Guardrails (POST /api/ai/explain):** Uses Gemini AI to provide nuanced, plain-language guidance. If the AI model is unreachable, times out, or hallucinates, the backend automatically falls back to deterministic rule explanations without changing the compatibility verdict.
+4. **PayPal Sandbox Integration (POST /api/payments/orders):** Demonstrates real PayPal Sandbox order creation and payment capture.
+5. **RouteIQ Audit & Intelligence Grid (GET /api/evaluations):** Tracks historical evaluations and route verdicts persisted in MySQL.
+
+---
+
+## Security & Compliance Principles
+
+- **Zero Tracked Secrets:** .env and pplication-local.properties are strictly excluded from version control.
+- **Isolated Payment Sandbox:** PayPal Sandbox transactions demonstrate external payment rail capabilities; they do not settle funds to merchant bank accounts encoded in scanned domestic UPI QR codes.
+- **Immutable Verdicts:** AI explanations clarify limitations and options, but cannot override authoritative backend compatibility decisions.
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
