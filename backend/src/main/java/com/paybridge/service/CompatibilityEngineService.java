@@ -157,16 +157,28 @@ public class CompatibilityEngineService {
             }
         }
 
+        // Extract parsed QR parameters for audit persistence
+        String payeeAddress = (parsedQr.fields() != null) ? parsedQr.fields().get("pa") : null;
+        String merchantName = (parsedQr.fields() != null) ? parsedQr.fields().get("pn") : null;
+        String amount = (parsedQr.fields() != null) ? parsedQr.fields().get("am") : null;
+        String currency = (parsedQr.fields() != null) ? parsedQr.fields().get("cu") : null;
+
         CompatibilityEvaluationResponse response = new CompatibilityEvaluationResponse(
                 evaluationId,
                 status,
                 reason,
                 evidence,
                 limitations,
-                evaluatedAt
+                evaluatedAt,
+                merchantName,
+                payeeAddress,
+                candidate,
+                country,
+                amount,
+                currency
         );
 
-        saveEvaluation(response);
+        saveEvaluation(response, request.qrText());
         return response;
     }
 
@@ -209,6 +221,11 @@ public class CompatibilityEngineService {
 
     @Transactional
     public void saveEvaluation(CompatibilityEvaluationResponse response) {
+        saveEvaluation(response, null);
+    }
+
+    @Transactional
+    public void saveEvaluation(CompatibilityEvaluationResponse response, String qrPayload) {
         if (response == null || response.evaluationId() == null) {
             return;
         }
@@ -222,9 +239,25 @@ public class CompatibilityEngineService {
                             response.evaluationId(),
                             response.status(),
                             response.reason(),
-                            response.evaluatedAt()
+                            response.evaluatedAt(),
+                            response.merchantName(),
+                            response.payeeAddress(),
+                            response.candidateProvider(),
+                            response.visitorCountry(),
+                            response.amount(),
+                            response.currency(),
+                            qrPayload
                     ));
             entity.update(response.status(), response.reason(), response.evaluatedAt());
+            entity.updateDetails(
+                    response.merchantName(),
+                    response.payeeAddress(),
+                    response.candidateProvider(),
+                    response.visitorCountry(),
+                    response.amount(),
+                    response.currency(),
+                    qrPayload
+            );
             entity.getEvidence().clear();
             entity.getLimitations().clear();
 
@@ -324,7 +357,13 @@ public class CompatibilityEngineService {
                 entity.getReason(),
                 Collections.unmodifiableList(evidence),
                 Collections.unmodifiableList(limitations),
-                entity.getEvaluatedAt()
+                entity.getEvaluatedAt(),
+                entity.getMerchantName(),
+                entity.getPayeeAddress(),
+                entity.getCandidateProvider(),
+                entity.getVisitorCountry(),
+                entity.getAmount(),
+                entity.getCurrency()
         );
     }
 }
