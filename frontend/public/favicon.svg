@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="16" fill="#8061D9" />
+  <!-- Vertical backbone pathway -->
+  <path d="M22 14V50" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" />
+  <!-- Upper loop pathway forming the 'P' bowl -->
+  <path d="M22 16H36C42.6274 16 48 21.3726 48 28C48 34.6274 42.6274 40 36 40H22" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+  <!-- Interconnecting bridge conduit -->
+  <path d="M22 28H42" stroke="#B7A1F5" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 3" />
+  <!-- Intelligent network nodes -->
+  <circle cx="22" cy="16" r="4" fill="#A8D9CE" stroke="#FFFFFF" stroke-width="1.5" />
+  <circle cx="22" cy="28" r="3" fill="#FFFFFF" />
+  <circle cx="22" cy="50" r="4" fill="#A8D9CE" stroke="#FFFFFF" stroke-width="1.5" />
+  <circle cx="36" cy="16" r="3" fill="#B7A1F5" stroke="#FFFFFF" stroke-width="1" />
+  <circle cx="48" cy="28" r="4.5" fill="#C3D8FA" stroke="#FFFFFF" stroke-width="1.5" />
+  <circle cx="36" cy="40" r="3" fill="#B7A1F5" stroke="#FFFFFF" stroke-width="1" />
+</svg>
+
