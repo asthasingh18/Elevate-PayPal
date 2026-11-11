@@ -1,0 +1,14 @@
+# Local environment configuration for PayBridge backend
+# Copy this file to application-local.properties (it is ignored by .gitignore)
+# and fill in your local MySQL password.
+
+# MySQL Database Password
+spring.datasource.password=YOUR_MYSQL_PASSWORD_HERE
+
+# Optional overrides:
+# spring.datasource.username=root
+# spring.datasource.url=jdbc:mysql://localhost:3306/paybridge_db
+# GEMINI_API_KEY=
+# PAYPAL_CLIENT_ID=
+# PAYPAL_CLIENT_SECRET=
+

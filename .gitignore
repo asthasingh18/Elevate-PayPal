@@ -48,3 +48,12 @@ temp/
 # Local database and application data
 *.sqlite
 *.sqlite3
+
+# Local backup files
+*.backup
+*.bak
+
+# Local environment and properties
+**/application-local.properties
+**/application-local.yml
+
